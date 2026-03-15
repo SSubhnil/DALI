@@ -1,0 +1,41 @@
+# DALI benchmark requirements — verified working on CUDA 12 + Python 3.10
+#
+# Install order:
+#   1. conda create -n dali python=3.10 -y
+#   2. pip install jax[cuda12]           # JAX GPU — MUST be first
+#   3. pip install -r requirements_dali.txt
+#   4. pip install -e /path/to/DALI/dreamerv3_compat -e /path/to/DALI/
+#   5. conda install -c conda-forge libegl libgl   # EGL rendering for MuJoCo
+#
+# EGL note: OSMesa CANNOT be used with JAX — Mesa's LLVM conflicts with
+# JAX's bundled LLVM, causing segfaults. Use EGL (GPU-accelerated) instead.
+# Set MUJOCO_GL=egl PYOPENGL_PLATFORM=egl when running.
+
+# JAX + CUDA 12 (install separately BEFORE this file)
+# pip install jax[cuda12]==0.6.2
+jaxlib==0.6.2
+
+# DreamerV3 base dependencies
+cloudpickle==3.1.2
+crafter==1.8.3
+gym==0.26.2
+numpy>=2.0
+optax==0.2.7
+rich>=14.0
+ruamel.yaml>=0.17,<0.18.0
+tensorflow-cpu==2.21.0
+tensorflow-probability==0.25.0
+tensorboard>=2.16.0
+wandb>=0.25.0
+
+# CARL contextual RL
+carl-bench==1.1.1
+
+# Procgen support (for benchmark wrappers)
+procgen==0.10.7
+shimmy[gym-v21]>=2.0.0
+
+# Simulator pins (must match benchmark_requirements.txt)
+dm_control==1.0.36
+mujoco==3.4.0
+ale-py==0.11.2

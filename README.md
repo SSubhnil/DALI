@@ -73,6 +73,71 @@ To generate the plots, run the scripts in the `./analysis` directory.
 
 ## Acknowledgments
 
-- cRSSM variants: Prasanna et al. 2024 - [https://github.com/sai-prasanna/dreaming_of_many_worlds](https://github.com/sai-prasanna/dreaming_of_many_worlds) 
+- cRSSM variants: Prasanna et al. 2024 - [https://github.com/sai-prasanna/dreaming_of_many_worlds](https://github.com/sai-prasanna/dreaming_of_many_worlds)
 - DreamerV3: Hafner et al. 2023 - [https://github.com/danijar/dreamerv3](https://github.com/danijar/dreamerv3)
-- CARL benchmark: Benjamins et al. 2023 - [https://github.com/automl/CARL](https://github.com/automl/CARL) 
+- CARL benchmark: Benjamins et al. 2023 - [https://github.com/automl/CARL](https://github.com/automl/CARL)
+
+---
+
+## Benchmark Fork
+
+> **This fork** ([`benchmark` branch](https://github.com/SSubhnil/DALI/tree/benchmark)) contains modifications for reproducing benchmark comparisons against [DRAMA](https://github.com/SSubhnil/CausalWorldModel). The original DALI code is available at [https://github.com/frankroeder/DALI](https://github.com/frankroeder/DALI).
+
+### Modifications
+
+1. **CARL 1.1.1 compatibility** — guarded imports for removed/renamed environments (`CARLDmcBallInCupEnv`, Box2D envs)
+2. **ale-py migration** — replaced deprecated `gym.envs.atari` with `ale_py.roms` in the DreamerV3 Atari wrapper
+3. **EGL rendering** — `train.py` defaults to `MUJOCO_GL=egl` and imports `dm_control` before JAX to avoid LLVM conflicts (OSMesa segfaults with JAX)
+4. **Benchmark presets** — configs for Regime A (cross-episode), Regime B (intra-episode), Atari mode switching, and Procgen level switching via CausalWorldModel wrappers
+
+### Benchmark Setup (conda)
+
+Requires [CausalWorldModel](https://github.com/SSubhnil/CausalWorldModel) as a sibling directory (or set `CAUSAL_WORLD_MODEL_ROOT` env var).
+
+```bash
+# 1. Clone repos as siblings
+git clone -b benchmark https://github.com/SSubhnil/DALI.git
+git clone https://github.com/SSubhnil/CausalWorldModel.git
+
+# 2. Create conda env
+conda create -n dali python=3.10 -y
+conda activate dali
+
+# 3. Install JAX with CUDA (MUST be first)
+pip install jax[cuda12]
+
+# 4. Install benchmark requirements
+pip install -r requirements_benchmark.txt
+
+# 5. Install DALI packages
+pip install -e ./dreamerv3_compat -e ./
+
+# 6. Install EGL rendering (required for MuJoCo + JAX)
+conda install -c conda-forge libegl libgl -y
+```
+
+### Running Benchmarks
+
+```bash
+export MUJOCO_GL=egl PYOPENGL_PLATFORM=egl
+
+# DMC Walker — Regime A (cross-episode context switching)
+python -m contextual_mbrl.dreamer.train \
+  --configs carl dmc_walker benchmark_regime_a \
+  --logdir logs/benchmark_regime_a_walker_s42 --seed 42
+
+# DMC Walker — Regime B (intra-episode context switching)
+python -m contextual_mbrl.dreamer.train \
+  --configs carl dmc_walker benchmark_regime_b \
+  --logdir logs/benchmark_regime_b_walker_s42 --seed 42
+
+# Atari Alien — mode switching
+python -m contextual_mbrl.dreamer.train \
+  --configs carl benchmark_atari_alien \
+  --logdir logs/benchmark_atari_alien_s42 --seed 42
+
+# Procgen CoinRun — level switching
+python -m contextual_mbrl.dreamer.train \
+  --configs carl benchmark_procgen_coinrun \
+  --logdir logs/benchmark_procgen_coinrun_s42 --seed 42
+```
