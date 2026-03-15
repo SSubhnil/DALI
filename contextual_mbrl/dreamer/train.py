@@ -4,9 +4,13 @@ import time
 import warnings
 
 if sys.platform == "linux":
-    os.environ["MUJOCO_GL"] = "egl"  # use EGL instead of GLFW to render MuJoCo
+    os.environ.setdefault("MUJOCO_GL", "egl")  # EGL for headless GPU rendering (DreamerV3 default)
+    os.environ.setdefault("PYOPENGL_PLATFORM", os.environ.get("MUJOCO_GL", "egl"))
 import re
 import warnings
+
+# Import dm_control BEFORE JAX to avoid LLVM conflicts (OSMesa LLVM vs JAX LLVM)
+import dm_control  # noqa: F401 — must be imported before JAX
 
 import dreamerv3
 import numpy as np
