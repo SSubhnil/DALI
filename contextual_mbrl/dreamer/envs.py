@@ -42,7 +42,10 @@ from carl.utils.types import Context, Contexts
 from dreamerv3 import embodied
 from dreamerv3.embodied.envs import from_gymnasium
 from gymnasium import Wrapper, spaces
-from gymnasium.wrappers.time_limit import TimeLimit
+try:
+    from gymnasium.wrappers.time_limit import TimeLimit
+except ModuleNotFoundError:
+    from gymnasium.wrappers import TimeLimit
 
 CARTPOLE_TRAIN_GRAVITY_RANGE = [4.9, 14.70]
 CARTPOLE_TRAIN_LENGTH_RANGE = [0.35, 0.75]
