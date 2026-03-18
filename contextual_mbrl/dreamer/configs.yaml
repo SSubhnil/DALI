@@ -547,14 +547,18 @@ benchmark_atari_alien:
   env.atari.switch_mode: round_robin
   env.atari.repeat: 4
   env.atari.size: [64, 64]
-  env.atari.gray: True
+  env.atari.gray: False
   env.atari.noops: 0
   env.atari.sticky: False
   env.atari.actions: needed
+  env.atari.lives: discount
   env.atari.length: 108000
   run.steps: 1000000
   run.eval_every: 100000
   run.eval_eps: 30
+  # Pixel-based: CNN for image, MLP for context vector
+  encoder: {mlp_keys: 'context', cnn_keys: 'image'}
+  decoder: {mlp_keys: '$^', cnn_keys: 'image'}
 
 benchmark_atari_pong:
   task: atari_pong
@@ -562,14 +566,17 @@ benchmark_atari_pong:
   env.atari.switch_mode: round_robin
   env.atari.repeat: 4
   env.atari.size: [64, 64]
-  env.atari.gray: True
+  env.atari.gray: False
   env.atari.noops: 0
   env.atari.sticky: False
   env.atari.actions: needed
+  env.atari.lives: discount
   env.atari.length: 108000
   run.steps: 1000000
   run.eval_every: 100000
   run.eval_eps: 30
+  encoder: {mlp_keys: 'context', cnn_keys: 'image'}
+  decoder: {mlp_keys: '$^', cnn_keys: 'image'}
 
 # Procgen benchmark presets
 benchmark_procgen_coinrun:
@@ -581,3 +588,6 @@ benchmark_procgen_coinrun:
   run.steps: 300000
   run.eval_every: 50000
   run.eval_eps: 30
+  # Pixel-based: CNN for image, MLP for context vector
+  encoder: {mlp_keys: 'context', cnn_keys: 'image'}
+  decoder: {mlp_keys: '$^', cnn_keys: 'image'}
