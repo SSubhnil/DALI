@@ -27,6 +27,10 @@ from carl.context.selection import AbstractSelector
 from carl.envs.carl_env import CARLEnv
 from carl.envs.dmc import CARLDmcWalkerEnv
 try:
+    from carl.envs.dmc import CARLDmcQuadrupedEnv
+except ImportError:
+    CARLDmcQuadrupedEnv = None
+try:
     from carl.envs.dmc import CARLDmcBallInCupEnv
 except ImportError:
     CARLDmcBallInCupEnv = None  # Not available in carl-bench >= 1.1.0
@@ -58,6 +62,8 @@ BALLINCUP_TRAIN_DISTANCE_RANGE = [0.15, 0.45]
 
 WALKER_TRAIN_GRAVITY_RANGE = [4.9, 14.70]
 WALKER_TRAIN_ACTUATOR_STRENGTH_RANGE = [0.5, 1.5]
+QUADRUPED_TRAIN_GRAVITY_RANGE = [4.9, 14.70]
+QUADRUPED_TRAIN_DAMPING_RANGE = [0.30, 3.00]  # joint_damping (default=1.0)
 
 BIPEDAL_WALKER_TRAIN_GRAVITY_RANGE = [-13.0, -7.0]
 BIPEDAL_WALKER_TRAIN_SPEED_KNEE_RANGE = [4.0, 9.0]
@@ -293,6 +299,27 @@ _TASK2CONTEXTS = {
             "extrapolate_double": [0.1, 0.3, 1.6, 1.8, 2.0],
         },
     ],
+    "dmc_quadruped": [
+        {
+            "context": "gravity",
+            "train_range": QUADRUPED_TRAIN_GRAVITY_RANGE,
+            "interpolate_single": [4.9, 7.35, 9.81, 12.25, 14.7],
+            "interpolate_double": [4.9, 9.81, 14.7],
+            "extrapolate_single": [
+                0.98, 1.715, 2.45, 3.185, 3.92,
+                15.68, 16.66, 17.64, 18.62, 19.6,
+            ],
+            "extrapolate_double": [0.98, 2.45, 3.92, 15.68, 17.64, 19.6],
+        },
+        {
+            "context": "joint_damping",
+            "train_range": QUADRUPED_TRAIN_DAMPING_RANGE,
+            "interpolate_single": [0.30, 0.65, 1.00, 2.00, 3.00],
+            "interpolate_double": [0.30, 1.00, 3.00],
+            "extrapolate_single": [0.10, 0.12, 0.15, 0.20, 4.00, 5.00, 7.00, 10.00],
+            "extrapolate_double": [0.10, 0.15, 5.00, 10.00],
+        },
+    ],
 }
 
 # Benchmark-aligned discrete context values for DRAMA comparison.
@@ -310,6 +337,20 @@ _BENCHMARK_CONTEXTS = {
             "test_iid":      [0.80, 0.90, 1.10, 1.20],
             "test_ood_mild": [0.50, 0.60, 1.40, 1.50],
             "test_ood_hard": [0.35, 0.40, 1.75, 2.00],
+        },
+    },
+    "dmc_quadruped": {
+        "gravity": {
+            "train":         [7.848, 8.829, 9.810, 10.791, 11.772],
+            "test_iid":      [8.339, 9.320, 10.301, 11.282],
+            "test_ood_mild": [6.377, 6.867, 13.244, 13.734],
+            "test_ood_hard": [4.905, 5.396, 15.696, 17.168],
+        },
+        "joint_damping": {
+            "train":         [0.30, 0.50, 1.00, 2.00, 3.00],
+            "test_iid":      [0.40, 0.75, 1.50, 2.50],
+            "test_ood_mild": [0.15, 0.20, 4.00, 5.00],
+            "test_ood_hard": [0.10, 0.12, 7.00, 10.00],
         },
     },
 }
@@ -331,6 +372,7 @@ _TASK2ENV = {
     "classic_cartpole": CARLCartPole,
     "dmc_ball_in_cup": CARLDmcBallInCupEnv,
     "dmc_walker": CARLDmcWalkerEnv,
+    "dmc_quadruped": CARLDmcQuadrupedEnv,
     "classic_pendulum": CARLPendulum,
     "box2d_bipedal_walker": CARLBipedalWalker,
     "box2d_bipedal_walker_new": CARLBipedalWalkerNew,
@@ -404,11 +446,18 @@ def make_atari_context_env(config, **overrides):
         "length": getattr(config.env.atari, "length", 108000),
         "resize": getattr(config.env.atari, "resize", "opencv"),
     }
+    lambda_switch = float(getattr(config.env.atari, "lambda_switch", 0.3))
+    lsr = getattr(config.env.atari, "lambda_switch_range", None)
+    lsr_tuple = tuple(float(x) for x in lsr) if lsr is not None else None
+    if lsr_tuple is not None and lsr_tuple[0] == 0.0 and lsr_tuple[1] == 0.0:
+        lsr_tuple = None  # [0.0, 0.0] sentinel means disabled
     env = AtariContextWrapper(
         game=game,
         task_sequence=task_seq,
         seed=seed,
         switch_mode=switch_mode,
+        lambda_switch=lambda_switch,
+        lambda_switch_range=lsr_tuple,
         atari_kwargs=atari_kwargs,
     )
     # AtariContextWrapper outputs DreamerV3-native format, no FromGymnasium needed
@@ -429,11 +478,18 @@ def make_procgen_context_env(config, **overrides):
     switch_mode = getattr(config.env.procgen, "switch_mode", "round_robin")
     image_size = tuple(getattr(config.env.procgen, "size", (64, 64)))
     gray = getattr(config.env.procgen, "gray", False)
+    lambda_switch = float(getattr(config.env.procgen, "lambda_switch", 0.3))
+    lsr = getattr(config.env.procgen, "lambda_switch_range", None)
+    lsr_tuple = tuple(float(x) for x in lsr) if lsr is not None else None
+    if lsr_tuple is not None and lsr_tuple[0] == 0.0 and lsr_tuple[1] == 0.0:
+        lsr_tuple = None  # [0.0, 0.0] sentinel means disabled
     env = ProcgenContextWrapper(
         game=game,
         task_sequence=task_seq,
         seed=seed,
         switch_mode=switch_mode,
+        lambda_switch=lambda_switch,
+        lambda_switch_range=lsr_tuple,
         image_size=image_size,
         gray=gray,
     )
@@ -455,6 +511,12 @@ class NormalizeContextWrapper(Wrapper):
         CARLDmcWalkerEnv: {
             "gravity": WALKER_TRAIN_GRAVITY_RANGE,
             "actuator_strength": WALKER_TRAIN_ACTUATOR_STRENGTH_RANGE,
+            "wind_x": [-20.0, 20.0],
+        },
+        CARLDmcQuadrupedEnv: {
+            "gravity": QUADRUPED_TRAIN_GRAVITY_RANGE,
+            "joint_damping": QUADRUPED_TRAIN_DAMPING_RANGE,
+            "wind_x": [-20.0, 20.0],
         },
         CARLPendulum: {
             "l": PENDULUM_LENGTH_RANGE,
@@ -747,12 +809,18 @@ def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config):
 
     # Regime B: intra-episode context switching (benchmark only)
     if getattr(config.env.carl, "regime", "A") == "B":
-        from benchmark.wrappers.carl_intra_episode import make_walker_regime_b_wrapper
         regime_b_split = getattr(config.env.carl, "regime_b_split", "train")
         regime_b_lambda = float(getattr(config.env.carl, "regime_b_lambda", 0.005))
-        env = make_walker_regime_b_wrapper(
-            env, seed=seed, lambda_switch=regime_b_lambda, split=regime_b_split,
-        )
+        if task == "dmc_quadruped":
+            from benchmark.wrappers.carl_intra_episode import make_quadruped_regime_b_wrapper
+            env = make_quadruped_regime_b_wrapper(
+                env, seed=seed, lambda_switch=regime_b_lambda, split=regime_b_split,
+            )
+        else:
+            from benchmark.wrappers.carl_intra_episode import make_walker_regime_b_wrapper
+            env = make_walker_regime_b_wrapper(
+                env, seed=seed, lambda_switch=regime_b_lambda, split=regime_b_split,
+            )
 
     if "classic" in task:
         env = TimeLimit(env, max_episode_steps=500)
