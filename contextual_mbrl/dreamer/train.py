@@ -182,7 +182,7 @@ def main():
                     name=logdir.name,
                     config=dict(config),
                     resume=True,
-                    dir=logdir,
+                    dir=str(logdir),
                 ),
             )
         )
