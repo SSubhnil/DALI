@@ -4,14 +4,11 @@ import time
 import warnings
 
 if sys.platform == "linux":
-    os.environ.setdefault("MUJOCO_GL", "egl")  # EGL for headless GPU rendering (DreamerV3 default)
+    os.environ.setdefault("MUJOCO_GL", "egl")  # EGL for headless GPU rendering
     os.environ.setdefault("PYOPENGL_PLATFORM", os.environ.get("MUJOCO_GL", "egl"))
+
 import re
 import warnings
-
-# Import dm_control BEFORE JAX to avoid LLVM conflicts (OSMesa LLVM vs JAX LLVM)
-import dm_control  # noqa: F401 — must be imported before JAX
-
 import dreamerv3
 import numpy as np
 import ruamel.yaml as yaml
@@ -171,8 +168,11 @@ def main():
     loggers = [
         embodied.logger.TerminalOutput(),
         embodied.logger.JSONLOutput(logdir, "metrics.jsonl"),
-        embodied.logger.TensorBoardOutput(logdir),
+        # TensorBoardOutput imports TF, which conflicts with Mesa EGL (shared LLVM).
+        # Skip it; metrics are available via JSONLOutput and WandB.
     ]
+    if not os.environ.get("DISABLE_TENSORBOARD"):
+        loggers.append(embodied.logger.TensorBoardOutput(logdir))
     if config.wandb.project != "":
         loggers.append(
             embodied.logger.WandBOutput(
@@ -192,7 +192,7 @@ def main():
     env = make_envs(config)
     agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
     replay = embodied.replay.Uniform(
-        config.batch_length, config.replay_size, logdir / "replay"
+        config.batch_length, config.replay_size, None
     )
     args = embodied.Config(
         **config.run,
@@ -200,6 +200,44 @@ def main():
         batch_steps=config.batch_size * config.batch_length,
     )
     train(agent, env, replay, logger, args)
+
+    if config.hf_repo:
+        _upload_checkpoint_to_hf(
+            logdir=logdir,
+            repo_id=config.hf_repo,
+            task=config.task,
+            seed=config.seed,
+            model_name="dali",
+        )
+
+
+def _upload_checkpoint_to_hf(logdir, repo_id, task, seed, model_name):
+    """Upload final checkpoint and config to a HuggingFace repo."""
+    try:
+        from huggingface_hub import HfApi
+        import os
+        api = HfApi()
+        # Create repo if it doesn't exist
+        api.create_repo(repo_id=repo_id, repo_type="model", exist_ok=True)
+        # Build a meaningful path prefix within the repo
+        path_prefix = f"{model_name}/{task}/seed{seed}"
+        ckpt_file = str(logdir / "checkpoint.ckpt")
+        cfg_file  = str(logdir / "config.yaml")
+        for local, remote in [
+            (ckpt_file, f"{path_prefix}/checkpoint.ckpt"),
+            (cfg_file,  f"{path_prefix}/config.yaml"),
+        ]:
+            if os.path.exists(local):
+                api.upload_file(
+                    path_or_fileobj=local,
+                    path_in_repo=remote,
+                    repo_id=repo_id,
+                    repo_type="model",
+                )
+                print(f"Uploaded {local} → {repo_id}/{remote}")
+        print(f"HF upload complete: https://huggingface.co/{repo_id}")
+    except Exception as e:
+        print(f"HF upload failed (non-fatal): {e}")
 
 
 if __name__ == "__main__":
