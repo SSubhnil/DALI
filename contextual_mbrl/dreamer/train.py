@@ -174,6 +174,7 @@ def main():
     if not os.environ.get("DISABLE_TENSORBOARD"):
         loggers.append(embodied.logger.TensorBoardOutput(logdir))
     if config.wandb.project != "":
+        import wandb as _wandb
         loggers.append(
             embodied.logger.WandBOutput(
                 ".*",
@@ -181,8 +182,9 @@ def main():
                     **config.wandb,
                     name=logdir.name,
                     config=dict(config),
-                    resume=True,
+                    resume="allow",
                     dir=str(logdir),
+                    settings=_wandb.Settings(init_timeout=300),
                 ),
             )
         )
