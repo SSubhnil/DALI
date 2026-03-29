@@ -529,7 +529,7 @@ benchmark_regime_a:
   env.carl.context: benchmark_discrete
   run.steps: 1000000
   run.eval_every: 20000
-  run.eval_eps: 50
+  run.eval_eps: 10
   # DALI-S: context-unaware (featurized obs only, no context)
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
@@ -542,7 +542,7 @@ benchmark_regime_b:
   env.carl.regime_b_split: train
   run.steps: 1000000
   run.eval_every: 20000
-  run.eval_eps: 50
+  run.eval_eps: 10
   # DALI-S: context-unaware (featurized obs only, no context)
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
@@ -555,7 +555,7 @@ benchmark_regime_b_quadruped:
   env.carl.regime_b_split: train
   run.steps: 1000000
   run.eval_every: 20000
-  run.eval_eps: 50
+  run.eval_eps: 10
   # DALI-S: context-unaware (featurized obs only, no context)
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
@@ -569,7 +569,7 @@ benchmark_regime_b_K3:
   env.carl.regime_b_factors: K3
   run.steps: 1000000
   run.eval_every: 20000
-  run.eval_eps: 50
+  run.eval_eps: 10
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
 
@@ -582,7 +582,7 @@ benchmark_regime_b_K3_quadruped:
   env.carl.regime_b_factors: K3
   run.steps: 1000000
   run.eval_every: 20000
-  run.eval_eps: 50
+  run.eval_eps: 10
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
 
@@ -596,7 +596,7 @@ benchmark_regime_b_mixed:
   env.carl.regime_b_reward_modes: [walk_forward, walk_backward]
   run.steps: 1000000
   run.eval_every: 20000
-  run.eval_eps: 50
+  run.eval_eps: 10
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
 
@@ -610,7 +610,7 @@ benchmark_regime_b_mixed_quadruped:
   env.carl.regime_b_reward_modes: [go_north, go_south]
   run.steps: 1000000
   run.eval_every: 20000
-  run.eval_eps: 50
+  run.eval_eps: 10
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
 
@@ -630,7 +630,7 @@ benchmark_atari_alien:
   env.atari.length: 108000
   run.steps: 1000000
   run.eval_every: 20000
-  run.eval_eps: 30
+  run.eval_eps: 10
   # DALI-S: context-unaware (image only, no context)
   encoder: {mlp_keys: '$^', cnn_keys: 'image'}
   decoder: {mlp_keys: '$^', cnn_keys: 'image'}
@@ -650,7 +650,7 @@ benchmark_atari_pong:
   env.atari.length: 108000
   run.steps: 1000000
   run.eval_every: 20000
-  run.eval_eps: 30
+  run.eval_eps: 10
   # DALI-S: context-unaware (image only, no context)
   encoder: {mlp_keys: '$^', cnn_keys: 'image'}
   decoder: {mlp_keys: '$^', cnn_keys: 'image'}
@@ -670,7 +670,7 @@ benchmark_atari_crazy_climber:
   env.atari.length: 108000
   run.steps: 1000000
   run.eval_every: 20000
-  run.eval_eps: 30
+  run.eval_eps: 10
   # DALI-S: context-unaware (image only, no context)
   encoder: {mlp_keys: '$^', cnn_keys: 'image'}
   decoder: {mlp_keys: '$^', cnn_keys: 'image'}
@@ -685,7 +685,7 @@ benchmark_procgen_coinrun:
   env.procgen.gray: False
   run.steps: 1000000
   run.eval_every: 20000
-  run.eval_eps: 30
+  run.eval_eps: 10
   # DALI-S: context-unaware (image only, no context)
   encoder: {mlp_keys: '$^', cnn_keys: 'image'}
   decoder: {mlp_keys: '$^', cnn_keys: 'image'}
