@@ -663,14 +663,14 @@ benchmark_atari_bank_heist:
   encoder: {mlp_keys: '$^', cnn_keys: 'image'}
   decoder: {mlp_keys: '$^', cnn_keys: 'image'}
 
-# ── Procgen benchmark presets (independent factor switching) ────────────
-# Level range and dist_mode switch independently via per-factor Bernoulli.
-# Single config covers both easy and hard (§A3).
+# ── Procgen benchmark presets (single-factor dist_mode switching) ────────
+# Only dist_mode switches (easy↔hard) via per-episode Bernoulli.
+# Seeds fixed at [0, 500) during training; OOD eval uses [500, 1000).
 
 benchmark_procgen_coinrun:
   task: procgen_coinrun
-  # Independent factors: 2 level ranges × 2 dist modes = 4 train combos
-  env.procgen.level_ranges: [[0, 100], [100, 100]]
+  # Single factor: dist_mode switches; seeds fixed at [0, 500)
+  env.procgen.level_ranges: [[0, 500]]
   env.procgen.dist_modes: [easy, hard]
   env.procgen.switch_mode: bernoulli
   env.procgen.lambda_switch_range: [0.15, 0.45]
