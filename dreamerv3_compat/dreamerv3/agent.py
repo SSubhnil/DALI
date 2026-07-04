@@ -121,8 +121,15 @@ class Agent(nj.Module):
             outs = task_outs
             outs["action"] = outs["action"].sample(seed=nj.rng())
             outs["log_entropy"] = jnp.zeros(outs["action"].shape[:1])
-            # Reward prediction for benchmark eval (reward accuracy metric)
-            reward_dist = self.wm.heads["reward"](latent)
+            # Reward prediction for benchmark eval (reward accuracy metric).
+            # Context-conditioned reward_head (inputs=[deter,stoch,context]) requires
+            # the dcontext slot; DALI uses ctx_encoder or obs["context"] (add_dcontext).
+            _reward_inputs = (
+                {**latent, "context": dcontext}
+                if (self.wm.rssm._add_dcontext or self.wm.use_ctx_encoder)
+                else latent
+            )
+            reward_dist = self.wm.heads["reward"](_reward_inputs)
             outs["reward_hat"] = reward_dist.mean()
         elif mode == "explore":
             outs = expl_outs
