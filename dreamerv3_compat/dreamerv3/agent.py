@@ -99,6 +99,20 @@ class Agent(nj.Module):
             })
             dcontext = dummy_len_dcontext[:, -1]
 
+        # GATE-U (reduced) dcontext override — trace-safe. The override rides the
+        # jitted policy inputs via obs["dctx_override"]/["dctx_override_use"] so
+        # the swap is per-step-correct under jit (see benchmark/gate_u_reduced.py).
+        # When dctx_override_use>0 the live rolling dcontext is REPLACED by the
+        # supplied vector at this step; use==0 leaves the live value untouched.
+        # Absent the keys (normal DALI/cRSSM eval) this block is a no-op → the
+        # parity eval path is byte-identical.
+        _dctx_live = dcontext
+        if dcontext is not None and "dctx_override" in obs:
+            _use = obs["dctx_override_use"].astype(dcontext.dtype)
+            _use = _use.reshape(_use.shape[:1] + (1,) * (dcontext.ndim - 1))
+            dcontext = _use * obs["dctx_override"].astype(dcontext.dtype) \
+                + (1.0 - _use) * dcontext
+
         # OLD
         # dcontext = obs["context"] if self.wm.rssm._add_dcontext else None
 
@@ -131,6 +145,16 @@ class Agent(nj.Module):
             )
             reward_dist = self.wm.heads["reward"](_reward_inputs)
             outs["reward_hat"] = reward_dist.mean()
+            # GATE-U instrumentation. log_* keys bypass env.step + preprocess but
+            # still ride episode transitions (harvest reads log_dctx_vec; the
+            # smoke asserts live!=used norm in override cells). Guarded so normal
+            # eval is untouched.
+            if "dctx_override" in obs and _dctx_live is not None:
+                outs["log_dctx_vec"] = _dctx_live
+                outs["log_dctx_norm_live"] = jnp.sqrt(
+                    jnp.square(_dctx_live).sum(-1) + 1e-12)
+                outs["log_dctx_norm_used"] = jnp.sqrt(
+                    jnp.square(dcontext).sum(-1) + 1e-12)
         elif mode == "explore":
             outs = expl_outs
             outs["log_entropy"] = outs["action"].entropy()
