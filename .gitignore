@@ -6,3 +6,7 @@ logs/
 wandb/
 *.so
 *.o
+
+# drift_eval (§8b port): core dumps and battery outputs are never committed
+core.*
+drift_eval_results/

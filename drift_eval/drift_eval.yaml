@@ -1,0 +1,42 @@
+# §8b gradual-shift battery for DALI — checkpoints and defaults (read by launch_drift_eval.sh).
+# Checkpoint inventory checked on the devbox 2026-09-14: each logdir holds checkpoint.ckpt +
+# config.yaml + metrics.jsonl; `metrics_last_step` is the last "step" in metrics.jsonl (the runner
+# reads the checkpoint's own step counter at run time and records it). HF was NOT queried.
+defaults:
+  n_episodes: 64
+  num_envs: 5                          # CWM Evaluate.NumEnvs; the CRN plan must match
+  conditions: [A, B, C, D, E]          # phys_train, drift_ir_a, drift_ir_s, drift_h_a, drift_h_s; F1..F256 = drift_tau_<k>
+  cwm_root: /home/jovyan/m10_code/45e8d5d
+  generator: drift_eval/vendor/drift_generator.py   # vendored, sha256 39b72cea… (befabde); see vendor/VENDORED.md
+
+checkpoints:
+  w3f:                      # config regime_b_factors K3 (actuator_strength, gravity, wind_x)
+    - {seed: 1, metrics_last_step: 949896, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_walker_3f/seed1}
+    - {seed: 2, metrics_last_step: 949896, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_walker_3f/seed2}
+    - {seed: 3, metrics_last_step: 949896, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_walker_3f/seed3}
+    - {seed: 4, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/walker_3f_s4}
+    - {seed: 5, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/walker_3f_s5}
+  w2fphys:                  # K2 (actuator_strength, gravity)
+    - {seed: 1, metrics_last_step: 949896, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_walker_2f/seed1}
+    - {seed: 2, metrics_last_step: 949896, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_walker_2f/seed2}
+    - {seed: 3, metrics_last_step: 949896, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_walker_2f/seed3}
+    - {seed: 4, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/walker_2f_s4}
+    - {seed: 5, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/walker_2f_s5}
+  w2fmix:                   # K3_mixed (gravity) + reward [walk_forward, walk_backward]
+    - {seed: 1, metrics_last_step: 949917, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/walker_mixed_s1}
+    - {seed: 2, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/walker_mixed_s2}
+    - {seed: 3, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/walker_mixed_s3}
+    - {seed: 4, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/walker_mixed_s4}
+    - {seed: 5, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/walker_mixed_s5}
+  quadruped_2f_phys:        # K2 (joint_damping, gravity)
+    - {seed: 1, metrics_last_step: 949896, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_quadruped_2f/seed1}
+    - {seed: 2, metrics_last_step: 949896, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_quadruped_2f/seed2}
+    - {seed: 3, metrics_last_step: 949896, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_quadruped_2f/seed3}
+    - {seed: 4, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/quad_2f_s4}
+    - {seed: 5, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/quad_2f_s5}
+  quadruped_2f_mixed:       # K3_mixed (gravity) + reward [go_north, go_south]
+    - {seed: 1, metrics_last_step: 949896, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_quadruped_2f_mixed/seed1}
+    - {seed: 2, metrics_last_step: 949897, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_quadruped_2f_mixed/seed2}
+    - {seed: 3, metrics_last_step: 949896, logdir: /home/jovyan/baseline_ckpts/dali_parity/dmc_quadruped_2f_mixed/seed3}
+    - {seed: 4, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/quad_mixed_s4}
+    - {seed: 5, metrics_last_step: 949896, logdir: /home/jovyan/projects/DALI/logs/retrain_950k/quad_mixed_s5}
