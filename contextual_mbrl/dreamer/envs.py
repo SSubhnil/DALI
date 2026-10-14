@@ -46,6 +46,7 @@ from carl.utils.types import Context, Contexts
 from dreamerv3 import embodied
 from dreamerv3.embodied.envs import from_gymnasium
 from gymnasium import Wrapper, spaces
+from dm_control.rl.control import PhysicsError as _DmPhysicsError
 try:
     from gymnasium.wrappers.time_limit import TimeLimit
 except ModuleNotFoundError:
@@ -583,8 +584,10 @@ class NormalizeContextWrapper(Wrapper):
         },
     }
 
-    def __init__(self, env):
+    def __init__(self, env, terminate_on_physics_error=False):
         super().__init__(env)
+        self._terminate_on_physics_error = bool(terminate_on_physics_error)
+        self._last_obs = None
         assert isinstance(env, CARLEnv)
         assert "context" in env.observation_space.keys()
         assert isinstance(env.observation_space["context"], spaces.Box)
@@ -618,17 +621,68 @@ class NormalizeContextWrapper(Wrapper):
             self.env.env.wind_idx = np.random.randint(-9999, 9999)
             self.env.env.torque_idx = np.random.randint(-9999, 9999)
         obs["context"] = self._normalize_context(obs["context"])
+        self._last_obs = obs
         return obs, info
 
     def step(self, action):
-        obs, reward, terminated, truncated, info = self.env.step(action)
+        if self._terminate_on_physics_error:
+            try:
+                result = self.env.step(action)
+            except _DmPhysicsError as exc:
+                return _diverged_step(self._last_obs, exc)
+        else:
+            result = self.env.step(action)
+        obs, reward, terminated, truncated, info = result
         obs["context"] = self._normalize_context(obs["context"])
+        self._last_obs = obs
         return obs, reward, terminated, truncated, info
 
     def _normalize_context(self, context):
         return (context - self._train_low) / (
             self._train_high - self._train_low
         ) * 2 - 1
+
+
+def _diverged_step(last_obs, exc):
+    """Terminal transition for a physics divergence (env.carl.physics_error terminate).
+
+    Mirrors CWM envs/my_dmc.py DMControl.step: the episode ends at the failing control step
+    (terminated, discount 0), that step adds no reward, the previous observation is returned,
+    and the episode's return so far is scored. A sub-step error inside the regime-B action
+    repeat therefore keeps the reward of the earlier sub-steps of the same decision.
+    """
+    print(f"[physics_error=terminate] episode ended by PhysicsError: {str(exc)[:160]}", flush=True)
+    return last_obs, 0.0, True, False, {"physics_diverged": True}
+
+
+class TerminateOnPhysicsError(Wrapper):
+    """Catch a PhysicsError raised above NormalizeContextWrapper's control step (the regime-B
+    wrapper's post-switch mj_forward) and end the episode as `_diverged_step` does."""
+
+    def __init__(self, env):
+        super().__init__(env)
+        self._last_obs = None
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        self._last_obs = obs
+        return obs, info
+
+    def step(self, action):
+        try:
+            obs, reward, terminated, truncated, info = self.env.step(action)
+        except _DmPhysicsError as exc:
+            return _diverged_step(self._last_obs, exc)
+        self._last_obs = obs
+        return obs, reward, terminated, truncated, info
+
+
+def _physics_error_mode(config, override=None):
+    carl = getattr(getattr(config, "env", None), "carl", None)
+    mode = override or getattr(carl, "physics_error", "restart")
+    if mode not in ("restart", "terminate"):
+        raise ValueError(f"unknown env.carl.physics_error {mode!r} (expected restart|terminate)")
+    return mode
 
 
 class RandomizedRoundRobinSelector(AbstractSelector):
@@ -805,8 +859,11 @@ def gen_carl_val_envs(config, **overrides):
     for context_info in contexts:
         ctors = []
         for index in range(config.envs.amount):
+            # Evaluation: a divergence ends (and scores) the episode, whatever
+            # env.carl.physics_error says.
             ctor = lambda: create_wrapped_carl_env(
-                env_cls, contexts={0: context_info["context"]}, config=config
+                env_cls, contexts={0: context_info["context"]}, config=config,
+                physics_error="terminate",
             )
             if config.envs.parallel != "none":
                 ctor = bind(embodied.Parallel, ctor, config.envs.parallel)
@@ -819,7 +876,7 @@ def gen_carl_val_envs(config, **overrides):
         ), context_info
 
 
-def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config):
+def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config, physics_error=None):
     _, task = config.task.split("_", 1)
     # Only the context features that might change in training or evaluation are # added to the observation space
     context_features = [o["context"] for o in _TASK2CONTEXTS[task]]
@@ -867,7 +924,8 @@ def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config):
     if task == "classic_cartpole":
         env.env.screen_width = 128
         env.env.screen_height = 128
-    env = NormalizeContextWrapper(env)
+    terminate_on_physics_error = _physics_error_mode(config, physics_error) == "terminate"
+    env = NormalizeContextWrapper(env, terminate_on_physics_error=terminate_on_physics_error)
 
     # Regime B: intra-episode context switching (benchmark only)
     if getattr(config.env.carl, "regime", "A") == "B":
@@ -940,6 +998,9 @@ def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config):
                     lambda_switch_range=regime_b_lambda_range, split=regime_b_split,
                     factor_splits=regime_b_factor_splits or None,
                 )
+
+        if terminate_on_physics_error:
+            env = TerminateOnPhysicsError(env)
 
         # K3_mixed: add reward mode switching on top of physics switching
         if regime_b_factors == "K3_mixed":
