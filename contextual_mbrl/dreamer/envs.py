@@ -914,12 +914,21 @@ def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config, physics_error=No
 
     if "dmc" in task:
         env.env.render_mode = "rgb_array"
+        _carl = env  # capture before env gets re-wrapped
+        _rsize = tuple(int(x) for x in getattr(config.env.carl, "render_size", (0, 0)))
         # CARL's _update_context() replaces self.env with a fresh
         # MujocoToGymWrapper every episode, so patching the inner wrapper
-        # doesn't survive.  Override CARLDmcEnv.render() to always pass
-        # camera_id=2 — this reads the *current* self.env each call.
-        if task == "dmc_quadruped":
-            _carl = env  # capture before env gets re-wrapped
+        # doesn't survive.  Override CARLDmcEnv.render() — this reads the
+        # *current* self.env each call.
+        if any(_rsize):
+            # Native render at env.carl.render_size, as TrajD/DRAMA (envs/my_dmc.DMControl:
+            # physics.render(64, 64, camera_id), camera 0 walker / 2 quadruped). The
+            # obs is already 64x64, so ResizeImage below resizes nothing.
+            _cam = 2 if task == "dmc_quadruped" else 0
+            env.render = lambda: _carl.env.render(
+                mode="rgb_array", camera_id=_cam, height=_rsize[0], width=_rsize[1])
+        elif task == "dmc_quadruped":
+            # Legacy: CARL default 240x320 at camera 2, resized by ResizeImage.
             env.render = lambda: _carl.env.render(mode="rgb_array", camera_id=2)
     if task == "classic_cartpole":
         env.env.screen_width = 128

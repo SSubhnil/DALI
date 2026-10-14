@@ -62,7 +62,9 @@ defaults:
     # scored, as CWM envs/my_dmc.py DMControl.step does for TK/DRAMA. Standalone eval uses
     # terminate whatever this says (gen_carl_val_envs forces it; the CWM harness sets it); the
     # default only governs training and the in-training eval env.
-    carl: {physics_error: restart, context: default, regime: A, regime_b_lambda: 0.005, regime_b_lambda_range: [0.003, 0.008], regime_b_split: train, regime_b_factors: K2, regime_b_reward_modes: [walk_forward, walk_backward], regime_b_factor_splits: [""]}
+    # render_size [0, 0] = legacy pixels (CARL physics.render 240x320, PIL bilinear to 64x64: 4:3 view
+    #   squeezed to 1:1); [H, W] = native MuJoCo render at HxW, as TrajD/DRAMA's DMControl (preset cwm_render_parity).
+    carl: {physics_error: restart, context: default, regime: A, regime_b_lambda: 0.005, regime_b_lambda_range: [0.003, 0.008], regime_b_split: train, regime_b_factors: K2, regime_b_reward_modes: [walk_forward, walk_backward], regime_b_factor_splits: [""], render_size: [0, 0]}
 
   # Agent
   task_behavior: Greedy
@@ -689,3 +691,9 @@ benchmark_procgen_coinrun:
   # DALI-D: context-unaware (image only, no context)
   encoder: {mlp_keys: '$^', cnn_keys: 'image'}
   decoder: {mlp_keys: '$^', cnn_keys: 'image'}
+
+# ── TrajD/DRAMA observation parity (PI 2026-10-14) ───────────────────────
+# Observation only: native 64x64 MuJoCo render (TrajD/DRAMA envs/my_dmc.DMControl: physics.render(64, 64,
+# camera_id)) instead of the 240x320 render + PIL bilinear resize. Nothing else changes. Stack last.
+cwm_render_parity:
+  env.carl.render_size: [64, 64]
