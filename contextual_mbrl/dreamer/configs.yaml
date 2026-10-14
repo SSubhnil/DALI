@@ -60,7 +60,14 @@ defaults:
     loconav: {size: [64, 64], repeat: 2, camera: -1}
     procgen: {task_sequence: '0_100_easy', switch_mode: round_robin, image_size: [64, 64], gray: False, lambda_switch: 0.3, lambda_switch_range: [0.0, 0.0], level_ranges: [-1, -1], dist_modes: [none]}
     # Extra carl config
-    carl: {context: default, regime: A, regime_b_lambda: 0.005, regime_b_lambda_range: [0.003, 0.008], regime_b_split: train, regime_b_factors: K2, regime_b_reward_modes: [walk_forward, walk_backward], regime_b_factor_splits: [""]}
+    # env.carl.physics_error: what a MuJoCo PhysicsError (divergence) in env.step does.
+    # `restart` (default, legacy): the exception reaches RestartOnException, the env is rebuilt
+    # with the same seed and the partial episode is dropped (an eval replaces it). `terminate`:
+    # the episode ends at the diverging step (terminal, discount 0) and its return so far is
+    # scored, as CWM envs/my_dmc.py DMControl.step does for TK/DRAMA. Standalone eval uses
+    # terminate whatever this says (gen_carl_val_envs forces it; the CWM harness sets it); the
+    # default only governs training and the in-training eval env.
+    carl: {physics_error: restart, context: default, regime: A, regime_b_lambda: 0.005, regime_b_lambda_range: [0.003, 0.008], regime_b_split: train, regime_b_factors: K2, regime_b_reward_modes: [walk_forward, walk_backward], regime_b_factor_splits: [""]}
 
   # Agent
   task_behavior: Greedy
