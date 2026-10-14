@@ -893,6 +893,7 @@ def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config, physics_error=No
     except ValueError:
         _proc_id = 0
     seed = _proc_id + int(config.seed)
+    print(f"[env-seed] process={current_process().name} seed={seed}", flush=True)
     if task == "box2d_lunar_lander":
         env_cls = bind(
             env_cls,
