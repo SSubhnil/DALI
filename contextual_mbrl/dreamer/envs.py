@@ -380,11 +380,38 @@ _TASK2ENV = {
 }
 
 
+def _env_seed(config, env_index=None, seed_mode=None):
+    """Seed of one env in a batch, per `envs.seed_mode` (configs.yaml).
+
+    proc:  config.seed + trailing integer of the multiprocessing process name. With
+           envs.parallel none every env runs in the main process (name "MainProcess" -> 0),
+           so all envs of the batch share config.seed and therefore one factor/context/reward
+           sequence. Legacy behaviour; all DALI parity runs and the 2026-10-14 cRSSM-D runs
+           trained this way.
+    index: config.seed + the env's index in the batch. Distinct for every env under any
+           envs.parallel setting. Evaluation uses this.
+    A config without the key or without an `envs` block (logdirs written before the key
+    existed, hand-built env configs) resolves to proc, the only behaviour such configs had.
+    """
+    mode = seed_mode or getattr(getattr(config, "envs", None), "seed_mode", "proc")
+    if mode == "index":
+        if env_index is None:
+            raise ValueError("envs.seed_mode=index needs the env index; build envs via make_envs")
+        return int(config.seed) + int(env_index)
+    if mode != "proc":
+        raise ValueError(f"unknown envs.seed_mode {mode!r} (expected 'proc' or 'index')")
+    try:
+        proc_id = int(current_process().name.split("-")[-1])
+    except ValueError:
+        proc_id = 0
+    return proc_id + int(config.seed)
+
+
 def make_envs(config, **overrides):
     suite, task = config.task.split("_", 1)
     ctors = []
     for index in range(config.envs.amount):
-        ctor = lambda: make_env(config, **overrides)
+        ctor = bind(make_env, config, env_index=index, **overrides)
         if config.envs.parallel != "none":
             ctor = bind(embodied.Parallel, ctor, config.envs.parallel)
         if config.envs.restart:
@@ -394,18 +421,18 @@ def make_envs(config, **overrides):
     return embodied.BatchEnv(envs, parallel=(config.envs.parallel != "none"))
 
 
-def make_env(config, **overrides):
+def make_env(config, env_index=None, **overrides):
     suite, task = config.task.split("_", 1)
     if suite == "carl":
-        return make_carl_env(config, **overrides)
+        return make_carl_env(config, env_index=env_index, **overrides)
     elif suite == "atari" and hasattr(config.env, "atari") and (
         (lambda m: bool(m) and tuple(m) != (-1,))(getattr(config.env.atari, "modes", None))
         or "/" in str(getattr(config.env.atari, "task_sequence", ""))):
-        return make_atari_context_env(config, **overrides)
+        return make_atari_context_env(config, env_index=env_index, **overrides)
     elif suite == "procgen" and hasattr(config.env, "procgen") and (
         (lambda m: bool(m) and tuple(m) != (-1, -1))(getattr(config.env.procgen, "level_ranges", None))
         or "/" in str(getattr(config.env.procgen, "task_sequence", ""))):
-        return make_procgen_context_env(config, **overrides)
+        return make_procgen_context_env(config, env_index=env_index, **overrides)
     else:
         return dreamerv3.train.make_env(config, **overrides)
 
@@ -428,15 +455,11 @@ def _parse_procgen_task_sequence(seq_str):
     return result
 
 
-def make_atari_context_env(config, **overrides):
+def make_atari_context_env(config, env_index=None, **overrides):
     """Create Atari env with CARL-like context features for benchmark."""
     from benchmark.wrappers.atari_context import AtariContextWrapper
     _, game = config.task.split("_", 1)
-    try:
-        _proc_id = int(current_process().name.split("-")[-1])
-    except ValueError:
-        _proc_id = 0
-    seed = _proc_id + int(config.seed)
+    seed = _env_seed(config, env_index)
     switch_mode = getattr(config.env.atari, "switch_mode", "round_robin")
     atari_kwargs = {
         "repeat": getattr(config.env.atari, "repeat", 4),
@@ -489,15 +512,11 @@ def make_atari_context_env(config, **overrides):
     return dreamerv3.wrap_env(env, config)
 
 
-def make_procgen_context_env(config, **overrides):
+def make_procgen_context_env(config, env_index=None, **overrides):
     """Create Procgen env with CARL-like context features for benchmark."""
     from benchmark.wrappers.procgen_context import ProcgenContextWrapper
     _, game = config.task.split("_", 1)
-    try:
-        _proc_id = int(current_process().name.split("-")[-1])
-    except ValueError:
-        _proc_id = 0
-    seed = _proc_id + int(config.seed)
+    seed = _env_seed(config, env_index)
     switch_mode = getattr(config.env.procgen, "switch_mode", "round_robin")
     image_size = tuple(getattr(config.env.procgen, "size", (64, 64)))
     gray = getattr(config.env.procgen, "gray", False)
@@ -662,7 +681,7 @@ class ResizeImage(embodied.wrappers.ResizeImage):
         return image
 
 
-def make_carl_env(config, **overrides):
+def make_carl_env(config, env_index=None, **overrides):
     suite, task = config.task.split("_", 1)
     assert suite == "carl", suite
 
@@ -730,7 +749,7 @@ def make_carl_env(config, **overrides):
     else:
         raise NotImplementedError(f"Context {config.env.carl.context} not implemented.")
 
-    return create_wrapped_carl_env(env_cls, contexts, config)
+    return create_wrapped_carl_env(env_cls, contexts, config, env_index=env_index)
 
 
 def gen_carl_val_envs(config, **overrides):
@@ -805,8 +824,10 @@ def gen_carl_val_envs(config, **overrides):
     for context_info in contexts:
         ctors = []
         for index in range(config.envs.amount):
-            ctor = lambda: create_wrapped_carl_env(
-                env_cls, contexts={0: context_info["context"]}, config=config
+            # Evaluation: every env gets its own seed regardless of envs.seed_mode.
+            ctor = bind(
+                create_wrapped_carl_env, env_cls, contexts={0: context_info["context"]},
+                config=config, env_index=index, seed_mode="index",
             )
             if config.envs.parallel != "none":
                 ctor = bind(embodied.Parallel, ctor, config.envs.parallel)
@@ -819,7 +840,7 @@ def gen_carl_val_envs(config, **overrides):
         ), context_info
 
 
-def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config):
+def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config, env_index=None, seed_mode=None):
     _, task = config.task.split("_", 1)
     # Only the context features that might change in training or evaluation are # added to the observation space
     context_features = [o["context"] for o in _TASK2CONTEXTS[task]]
@@ -831,11 +852,7 @@ def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config):
             and getattr(config.env.carl, "regime_b_factors", "K2") == "K3"
             and "wind_x" not in context_features):
         context_features = context_features + ["wind_x"]
-    try:
-        _proc_id = int(current_process().name.split("-")[-1])
-    except ValueError:
-        _proc_id = 0
-    seed = _proc_id + int(config.seed)
+    seed = _env_seed(config, env_index, seed_mode)
     if task == "box2d_lunar_lander":
         env_cls = bind(
             env_cls,

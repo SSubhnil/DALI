@@ -45,7 +45,12 @@ defaults:
     actor_addr: 'ipc:///tmp/5551'
     actor_batch: 32
 
-  envs: {amount: 4, parallel: process, length: 0, reset: True, restart: True, discretize: 0, checks: False}
+  # envs.seed_mode: seed of each env in a batch. `proc` (default) = seed + process-name index:
+  # with envs.parallel none all envs share one seed and one factor/context/reward sequence. All DALI
+  # parity runs and the 2026-10-14 cRSSM-D runs trained this way; the default keeps training (and the
+  # in-training eval env) reproducible. `index` = seed + env index: distinct per env. Standalone
+  # evaluation uses `index` (gen_carl_val_envs forces it; external harnesses set it).
+  envs: {amount: 4, parallel: process, length: 0, reset: True, restart: True, discretize: 0, checks: False, seed_mode: proc}
   wrapper: {length: 0, reset: True, discretize: 0, checks: False}
   env:
     atari: {size: [64, 64], repeat: 4, sticky: True, gray: False, actions: all, lives: unused, noops: 0, resize: opencv, length: 108000, task_sequence: '0_0', switch_mode: round_robin, lambda_switch: 0.3, lambda_switch_range: [0.0, 0.0], modes: [-1], difficulties: [-1]}
