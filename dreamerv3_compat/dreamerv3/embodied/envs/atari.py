@@ -150,7 +150,11 @@ class Atari(embodied.Env):
         reward=reward,
         is_first=is_first,
         is_last=is_last,
-        is_terminal=is_last,
+        # Return the is_terminal the caller computed (step(): dead or game over). Previously is_terminal=is_last, which
+        # dropped the life-loss terminal under lives='discount' and made the 108k-frame length cap a terminal; now a
+        # life loss zeroes the discount while the game continues (is_last only at game over or the cap), and the cap is a
+        # truncation (is_last True, is_terminal False), as CWM envs/my_atari.py does.
+        is_terminal=is_terminal,
     )
 
   def _screen(self, array):
