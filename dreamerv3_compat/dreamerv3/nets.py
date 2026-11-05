@@ -224,6 +224,7 @@ class RSSM(nj.Module):
         add_context_posterior=False,
         context_size=0,
         add_enc_ctx=False,
+        add_context_seq=True,
         **kw,
     ):
         self._deter = deter
@@ -236,6 +237,10 @@ class RSSM(nj.Module):
         self._kw = kw
         # check flag add_dcontext in self._kw
         self._add_enc_ctx = add_enc_ctx
+        # 2026-11-05 (PI): add_context_seq False = paper DALI-S (arXiv 2508.20294 sec 4.3): the inferred context
+        # enters ONLY the posterior (with add_context_posterior True); the sequence-model input stays [stoch, action].
+        # Default True keeps every existing preset unchanged.
+        self._add_context_seq = add_context_seq
         self._add_dcontext = add_dcontext
         self._add_context_prior = add_context_prior
         self._add_context_posterior = add_context_posterior
@@ -363,7 +368,7 @@ class RSSM(nj.Module):
             shape = prev_action.shape[:-2] + (np.prod(prev_action.shape[-2:]),)
             prev_action = prev_action.reshape(shape)
         x = jnp.concatenate([prev_stoch, prev_action], -1)
-        x = x if dcontext is None else jnp.concatenate([x, dcontext], -1)
+        x = x if (dcontext is None or not self._add_context_seq) else jnp.concatenate([x, dcontext], -1)
         # print(f"X IS {x.shape} {dcontext}")
         x = self.get("img_in", Linear, **self._kw)(x)
         x, deter = self._gru(x, prev_state["deter"])
