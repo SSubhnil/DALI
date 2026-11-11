@@ -375,6 +375,11 @@ class WorldModel(nj.Module):
                 # calculate h_t and prior (\hat{z}_t) based on prev state and action
                 ctx_prior = self.rssm.img_step(sg(prev_state), prev_action, dcontext=sg(rolling_ctx[:, -1]))
                 x = jnp.concatenate([sg(ctx_prior["deter"]), embed[:, t]], -1)
+                # 2026-11-11: mirror RSSM.obs_step (nets.py:347-349): with add_context_posterior the posterior input is
+                # [deter, embed, ctx]; without this obs_out was called on [deter, embed] and failed at build (DALI-S).
+                # sg as in the img_step call above and the main observe path (agent.py ctx = sg(ctx_encoder(...))).
+                if self.rssm._add_context_posterior:
+                    x = jnp.concatenate([x, sg(rolling_ctx[:, -1])], -1)
                 # calculate z_t (posterior) based on prior h_t and embedding of o_t
                 x = self.rssm.get("obs_out", nets.Linear, **self.rssm._kw)(x)
                 stats = self.rssm._stats("obs_stats", x)
