@@ -158,8 +158,19 @@ def train(agent, env, replay, logger, args, eval_env=None, factor_names=None):
     policy = lambda *args: agent.policy(
         *args, mode="explore" if should_expl(step) else "train"
     )
+    # run.retain_steps (2026-11-16): one copy checkpoint per listed step, written at the first loop boundary
+    # at/after it, only for steps above the step this process started at (a resume past a step never writes it).
+    start_step = int(step)
+    retain = sorted(int(s) for s in args.retain_steps if int(s) > 0 and int(s) > start_step)
+    for s in sorted(int(s) for s in args.retain_steps if 0 < int(s) <= start_step):
+        if not (logdir / f"checkpoint_{s}.ckpt").exists():
+            print(f"[retain] resumed at step {start_step} past retain step {s} with no checkpoint_{s}.ckpt; not written")
     while step < args.steps:
         driver(policy, steps=100)
+        while retain and int(step) >= retain[0]:
+            s = retain.pop(0)
+            print(f"[retain] step {int(step)} >= {s}: writing checkpoint_{s}.ckpt")
+            checkpoint.save(logdir / f"checkpoint_{s}.ckpt")
         if should_eval is not None and should_eval(step):
             eval_policy = lambda *a, **kw: agent.policy(*a, mode="train")
             eval_driver(eval_policy, episodes=args.eval_eps)

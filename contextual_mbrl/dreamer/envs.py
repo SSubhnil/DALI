@@ -399,6 +399,8 @@ def make_env(config, **overrides):
     suite, task = config.task.split("_", 1)
     if suite == "carl":
         return make_carl_env(config, **overrides)
+    elif suite == "cwm":
+        return make_cwm_env(config, **overrides)
     elif suite == "atari" and hasattr(config.env, "atari") and (
         (lambda m: bool(m) and tuple(m) != (-1,))(getattr(config.env.atari, "modes", None))
         or "/" in str(getattr(config.env.atari, "task_sequence", ""))):
@@ -874,6 +876,33 @@ def gen_carl_val_envs(config, **overrides):
         yield embodied.BatchEnv(
             envs, parallel=(config.envs.parallel != "none")
         ), context_info
+
+
+def make_cwm_env(config, **overrides):
+    """W2F-vel (2026-11-16): the CWM TrajD training env chain (DMControl -> LatentFactors -> RewardFactors,
+    built by CWM envs/dmc_train_env.build_dmc_env from CWM preset env.cwm.preset), seeded proc_id + seed as
+    the CARL path seeds its envs. Tail = the CARL path's tail (FromGymnasium, RenderImage, ResizeImage, wrap_env)."""
+    suite, task = config.task.split("_", 1)
+    assert (suite, task) == ("cwm", "dmc_walker"), config.task
+    from benchmark.wrappers.cwm_dmc_gym import CWMDmcGym
+    try:
+        _proc_id = int(current_process().name.split("-")[-1])
+    except ValueError:
+        _proc_id = 0
+    seed = _proc_id + int(config.seed)
+    print(f"[env-seed] process={current_process().name} seed={seed} cwm_preset={config.env.cwm.preset}", flush=True)
+    env = CWMDmcGym(config.env.cwm.preset, seed)
+    env = from_gymnasium.FromGymnasium(env, obs_key="obs")
+    env = embodied.core.wrappers.RenderImage(env, key="image")
+    env = ResizeImage(env)
+    # dreamerv3.wrap_env minus NormalizeAction: the walker action space is exactly [-1, 1], where NormalizeAction is the
+    # identity in exact arithmetic but (a + 1) / 2 * 2 - 1 in float32 moves the applied action by up to 1 ulp of a + 1
+    # (measured: the trajectory then diverges from TrajD's within 5 decisions under identical actions). ClipAction kept.
+    sp = env.act_space["action"]
+    assert not sp.discrete and np.all(sp.low == -1) and np.all(sp.high == 1), sp
+    assert not (config.wrapper.discretize or config.wrapper.length or config.wrapper.checks), config.wrapper
+    env = embodied.wrappers.ExpandScalars(env)
+    return embodied.wrappers.ClipAction(env, "action")
 
 
 def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config, physics_error=None):

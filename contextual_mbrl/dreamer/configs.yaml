@@ -40,6 +40,9 @@ defaults:
     log_keys_mean: '(log_entropy)'
     log_keys_max: '^$'
     from_checkpoint: ''
+    # Steps at which a copy checkpoint_<step>.ckpt is written once (first loop boundary at/after the step,
+    # only if the run started below it). Entries <= 0 are ignored; [0] = none (embodied disallows []).
+    retain_steps: [0]
     sync_every: 10
     # actor_addr: 'tcp://127.0.0.1:5551'
     actor_addr: 'ipc:///tmp/5551'
@@ -65,6 +68,9 @@ defaults:
     # render_size [0, 0] = legacy pixels (CARL physics.render 240x320, PIL bilinear to 64x64: 4:3 view
     #   squeezed to 1:1); [H, W] = native MuJoCo render at HxW, as TrajD/DRAMA's DMControl (preset cwm_render_parity).
     carl: {physics_error: restart, context: default, regime: A, regime_b_lambda: 0.005, regime_b_lambda_range: [0.003, 0.008], regime_b_split: train, regime_b_factors: K2, regime_b_reward_modes: [walk_forward, walk_backward], regime_b_factor_splits: [""], render_size: [0, 0]}
+    # task cwm_dmc_walker (W2F-vel, 2026-11-16): the env is the CWM TrajD training chain
+    # (CWM benchmark/wrappers/cwm_dmc_gym.py, envs/dmc_train_env.py) built from CWM experiment preset env.cwm.preset.
+    cwm: {preset: none}
 
   # Agent
   task_behavior: Greedy
@@ -622,6 +628,18 @@ benchmark_regime_b_mixed_quadruped:
   run.eval_eps: 10
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
+
+# W2F-vel (2026-11-16): walker, gravity + signed target velocity, env = CWM preset trajd_w2fvel (TrajD's chain).
+# Launch stack as walker_mixed: carl <this> <arch> cwm_render_parity (carl sets model size; render_size is unused here).
+benchmark_walker_vel:
+  task: cwm_dmc_walker
+  env.cwm.preset: trajd_w2fvel
+  run.steps: 1000000
+  run.eval_every: 20000
+  run.eval_eps: 10
+  run.retain_steps: [250000, 500000]
+  encoder: {mlp_keys: '$^', cnn_keys: 'image'}
+  decoder: {mlp_keys: '$^', cnn_keys: 'image'}
 
 # Atari benchmark presets
 # ── Atari benchmark presets (independent factor switching) ──────────────
